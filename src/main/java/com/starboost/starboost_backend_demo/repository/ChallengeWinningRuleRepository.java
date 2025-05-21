@@ -11,18 +11,17 @@ import java.util.List;
  * Repository for fetching “winning” (eligibility) rules of a challenge.
  */
 @Repository
-public interface ChallengeWinningRuleRepository
-        extends JpaRepository<ChallengeWinningRule, Long> {
+public interface ChallengeWinningRuleRepository extends JpaRepository<ChallengeWinningRule, Long> {
 
     /**
      * All rules for a challenge.
      */
-    List<ChallengeWinningRule> findAllByChallengeId(Long challengeId);
+    List<ChallengeWinningRule> findAllByChallenge_Id(Long challengeId);
 
     /**
      * Only the rules for one role within that challenge.
      */
-    List<ChallengeWinningRule> findAllByChallengeIdAndRoleCategory(
+    List<ChallengeWinningRule> findAllByChallenge_IdAndRoleCategory(
             Long challengeId,
             Role roleCategory
     );

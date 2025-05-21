@@ -1,10 +1,13 @@
+// src/main/java/com/starboost/starboost_backend_demo/service/impl/SalesTransactionServiceImpl.java
 package com.starboost.starboost_backend_demo.service.impl;
 
 import com.starboost.starboost_backend_demo.dto.SalesTransactionDto;
 import com.starboost.starboost_backend_demo.entity.Challenge;
 import com.starboost.starboost_backend_demo.entity.SalesTransaction;
+import com.starboost.starboost_backend_demo.entity.Role;
 import com.starboost.starboost_backend_demo.repository.ChallengeRepository;
 import com.starboost.starboost_backend_demo.repository.SalesTransactionRepository;
+import com.starboost.starboost_backend_demo.service.ChallengeParticipantService;
 import com.starboost.starboost_backend_demo.service.SalesTransactionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -12,11 +15,15 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Supports CRUD + challenge‐scoped and seller‐scoped lookups.
+ */
 @Service
 @RequiredArgsConstructor
 public class SalesTransactionServiceImpl implements SalesTransactionService {
-    private final SalesTransactionRepository repo;
-    private final ChallengeRepository        challRepo;
+    private final SalesTransactionRepository      repo;
+    private final ChallengeRepository             challRepo;
+    private final ChallengeParticipantService     participantService;
 
     @Override
     public SalesTransactionDto create(SalesTransactionDto dto) {
@@ -34,6 +41,7 @@ public class SalesTransactionServiceImpl implements SalesTransactionService {
 
     @Override
     public SalesTransactionDto findById(Long id) {
+        // correct use of orElseThrow
         SalesTransaction tx = repo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Sale not found: " + id));
         return toDto(tx);
@@ -44,7 +52,7 @@ public class SalesTransactionServiceImpl implements SalesTransactionService {
         SalesTransaction existing = repo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Sale not found: " + id));
 
-        // copy all updatable fields
+        // copy updatable fields
         existing.setPremium(dto.getPremium());
         existing.setProduct(dto.getProduct());
         existing.setContractType(dto.getContractType());
@@ -56,11 +64,11 @@ public class SalesTransactionServiceImpl implements SalesTransactionService {
         existing.setSaleDate(dto.getSaleDate());
         existing.setSellerName(dto.getSellerName());
 
-        // if challengeId present, update link
+        // update challenge link if present
         if (dto.getChallengeId() != null) {
-            Challenge chall = challRepo.findById(dto.getChallengeId())
+            Challenge ch = challRepo.findById(dto.getChallengeId())
                     .orElseThrow(() -> new RuntimeException("Challenge not found: " + dto.getChallengeId()));
-            existing.setChallenge(chall);
+            existing.setChallenge(ch);
         }
 
         SalesTransaction saved = repo.save(existing);
@@ -79,25 +87,52 @@ public class SalesTransactionServiceImpl implements SalesTransactionService {
 
     @Override
     public List<SalesTransactionDto> findAllByChallengeId(Long challengeId) {
-        return repo.findAllByChallengeId(challengeId).stream()
+        // uses your custom repository method findAllByChallenge_Id
+        return repo.findAllByChallenge_Id(challengeId).stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
 
     @Override
     public SalesTransactionDto createForChallenge(Long challengeId, SalesTransactionDto dto) {
-        Challenge chall = challRepo.findById(challengeId)
+        Challenge ch = challRepo.findById(challengeId)
                 .orElseThrow(() -> new RuntimeException("Challenge not found: " + challengeId));
         SalesTransaction tx = toEntity(dto);
-        tx.setChallenge(chall);
+        tx.setChallenge(ch);
         SalesTransaction saved = repo.save(tx);
         return toDto(saved);
     }
 
-    // ─── Helpers ───────────────────────────────────────
+    @Override
+    public List<SalesTransactionDto> findByChallengeAndRole(Long challengeId, Role role) {
+        List<Long> sellerIds = participantService.listParticipantIds(challengeId, role);
+        return repo.findAllByChallenge_Id(challengeId).stream()
+                .filter(tx -> sellerIds.contains(tx.getSellerId()))
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<SalesTransactionDto> findByChallengeAndSellerId(Long challengeId, Long sellerId) {
+        return repo.findAllByChallenge_Id(challengeId).stream()
+                .filter(tx -> tx.getSellerId().equals(sellerId))
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<SalesTransactionDto> findByChallengeAndSellerName(Long challengeId, String sellerName) {
+        return repo.findAllByChallenge_Id(challengeId).stream()
+                .filter(tx -> tx.getSellerName() != null
+                        && tx.getSellerName().equalsIgnoreCase(sellerName))
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
+
+    // ─── Helpers ─────────────────────────────────────────────────────
 
     private SalesTransaction toEntity(SalesTransactionDto d) {
-        SalesTransaction.SalesTransactionBuilder builder = SalesTransaction.builder()
+        var builder = SalesTransaction.builder()
                 .premium(d.getPremium())
                 .product(d.getProduct())
                 .contractType(d.getContractType())
@@ -109,12 +144,9 @@ public class SalesTransactionServiceImpl implements SalesTransactionService {
                 .saleDate(d.getSaleDate())
                 .sellerName(d.getSellerName());
 
-        // if challengeId present, link it
         if (d.getChallengeId() != null) {
-            Challenge chall = challRepo.getReferenceById(d.getChallengeId());
-            builder.challenge(chall);
+            builder.challenge(challRepo.getReferenceById(d.getChallengeId()));
         }
-
         return builder.build();
     }
 

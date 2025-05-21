@@ -5,5 +5,6 @@ public enum Role {
     AGENCY_MANAGER,
     REGIONAL_MANAGER,
     ANIMATOR,
-    AGENT
+    AGENT,
+    ADMIN
 }

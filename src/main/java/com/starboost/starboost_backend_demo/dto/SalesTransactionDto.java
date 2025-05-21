@@ -2,22 +2,53 @@
 package com.starboost.starboost_backend_demo.dto;
 
 import com.starboost.starboost_backend_demo.entity.*;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 import java.time.LocalDateTime;
 
-@Data @NoArgsConstructor @AllArgsConstructor @Builder
+/**
+ * DTO for SalesTransaction create operations.
+ */
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class SalesTransactionDto {
-    private Long          id;
-    private Double        premium;
-    private Product       product;
-    private ContractType  contractType;
+    private Long id;
+
+    @NotNull(message = "Premium is required")
+    @Min(value = 0, message = "Premium must be non‐negative")
+    private Double premium;
+
+    @NotNull(message = "Product is required")
+    private Product product;
+
+    @NotNull(message = "Contract type is required")
+    private ContractType contractType;
+
+    @NotNull(message = "Transaction nature is required")
     private TransactionNature transactionNature;
-    private Long          sellerId;
-    private Role          sellerRole;
-    private Long          agencyId;
-    private Long          regionId;
+
+    @NotNull(message = "pack Type is required")
+    private PackType packType;
+
+    @NotNull(message = "Seller ID is required")
+    private Long sellerId;
+
+    @NotNull(message = "Seller role is required")
+    private Role sellerRole;
+
+    private Long agencyId;
+    private Long regionId;
+
+    @NotNull(message = "Sale date is required")
     private LocalDateTime saleDate;
-    private String        sellerName;
-    private Long          challengeId;   // ← NEW
+
+    @NotBlank(message = "Seller name is required")
+    private String sellerName;
+
+    private Long challengeId;
 }

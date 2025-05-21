@@ -1,3 +1,4 @@
+// src/main/java/com/starboost/starboost_backend_demo/service/impl/ScoreRuleServiceImpl.java
 package com.starboost.starboost_backend_demo.service.impl;
 
 import com.starboost.starboost_backend_demo.dto.ScoreRuleDto;
@@ -12,15 +13,20 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Implements ScoreRuleService.
+ * All operations are scoped to a given challenge.
+ */
 @Service
 @RequiredArgsConstructor
 public class ScoreRuleServiceImpl implements ScoreRuleService {
-    private final ScoreRuleRepository    repo;
-    private final ChallengeRepository    challRepo;
+    private final ScoreRuleRepository repo;
+    private final ChallengeRepository challRepo;
 
     @Override
     public List<ScoreRuleDto> findAllByChallengeId(Long challengeId) {
-        return repo.findAllByChallengeId(challengeId).stream()
+        // use repository method matching column challenge_id
+        return repo.findAllByChallenge_Id(challengeId).stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
@@ -29,14 +35,15 @@ public class ScoreRuleServiceImpl implements ScoreRuleService {
     public ScoreRuleDto findById(Long challengeId, Long ruleId) {
         ScoreRule sr = repo.findById(ruleId)
                 .filter(r -> r.getChallenge().getId().equals(challengeId))
-                .orElseThrow(() -> new RuntimeException("ScoreRule not found for challenge"));
+                .orElseThrow(() -> new RuntimeException("ScoreRule not found for challenge: " + challengeId));
         return toDto(sr);
     }
 
     @Override
     public ScoreRuleDto createForChallenge(Long challengeId, ScoreRuleDto dto) {
+        // link new rule to its challenge
         Challenge chall = challRepo.findById(challengeId)
-                .orElseThrow(() -> new RuntimeException("Challenge not found"));
+                .orElseThrow(() -> new RuntimeException("Challenge not found: " + challengeId));
         ScoreRule sr = toEntity(dto);
         sr.setChallenge(chall);
         ScoreRule saved = repo.save(sr);
@@ -47,7 +54,7 @@ public class ScoreRuleServiceImpl implements ScoreRuleService {
     public ScoreRuleDto updateForChallenge(Long challengeId, Long ruleId, ScoreRuleDto dto) {
         ScoreRule existing = repo.findById(ruleId)
                 .filter(r -> r.getChallenge().getId().equals(challengeId))
-                .orElseThrow(() -> new RuntimeException("ScoreRule not found for challenge"));
+                .orElseThrow(() -> new RuntimeException("ScoreRule not found for challenge: " + challengeId));
         existing.setScoreType(dto.getScoreType());
         existing.setContractType(dto.getContractType());
         existing.setPackType(dto.getPackType());
@@ -61,7 +68,7 @@ public class ScoreRuleServiceImpl implements ScoreRuleService {
     public void deleteForChallenge(Long challengeId, Long ruleId) {
         ScoreRule existing = repo.findById(ruleId)
                 .filter(r -> r.getChallenge().getId().equals(challengeId))
-                .orElseThrow(() -> new RuntimeException("ScoreRule not found for challenge"));
+                .orElseThrow(() -> new RuntimeException("ScoreRule not found for challenge: " + challengeId));
         repo.delete(existing);
     }
 

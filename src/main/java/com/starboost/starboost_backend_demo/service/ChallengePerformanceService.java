@@ -48,12 +48,21 @@ public interface ChallengePerformanceService {
     /** Sum of all raw scores for this agency’s commercials. */
     int getAgencyTotalScore(Long challengeId, Long agencyId);
 
+    /** Sum of all contract counts for this agency’s commercials. */
+    long getAgencyTotalContracts(Long challengeId, Long agencyId);
+
     /** Sum of all revenues for this region’s sales points. */
     double getRegionTotalRevenue(Long challengeId, Long regionId);
 
     /** Sum of all raw scores for this region’s sales points. */
     int getRegionTotalScore(Long challengeId, Long regionId);
 
-    /** How many “points de vente” (i.e. participants) in this region for the challenge. */
-    long getRegionPVCount(Long challengeId, Long regionId);
+    /** Sum of all contracts for this region’s sales points. */
+    long getRegionTotalContracts(Long challengeId, Long regionId);
+
+
+
+
+
+
 }

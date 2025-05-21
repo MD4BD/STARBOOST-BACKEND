@@ -21,6 +21,13 @@ public interface ChallengeParticipantService {
             String filterName
     );
 
+    Long getUserIdByEmail(String email);
+    List<Long> listChallengeIdsForUser(Long userId);
+
+
+
+
+
     /**
      * For evaluation: list the user‐IDs of all participants in one role.
      */
@@ -36,13 +43,14 @@ public interface ChallengeParticipantService {
      */
     Long getRegionIdForUser(Long userId);
 
-    /**
-     * For evaluation: how many participants in this challenge share that agency?
-     */
-    long countByAgency(Long challengeId, Long agencyId);
+
+    // counts how many commercials in a specific agency in the challenge
+    long countCommercialsInAgency(Long challengeId, Long agencyId);
+
 
     /**
-     * For evaluation: how many participants in this challenge share that region?
+          * “Points-de-vente” = # of AGENT participants + # of distinct commercial-AGENCIES
+          * in a region for this challenge.
      */
-    long countByRegion(Long challengeId, Long regionId);
+    long countSalesPointsInRegion(Long challengeId, Long regionId);
 }

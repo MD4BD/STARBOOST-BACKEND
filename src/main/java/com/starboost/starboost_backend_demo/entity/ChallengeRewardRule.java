@@ -28,7 +28,7 @@ public class ChallengeRewardRule {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "payout_type", nullable = false)
-    private PayoutType payoutType;    // FIXED_TIERS or PERCENT_COMMIT
+    private PayoutType payoutType;    // FIXED_TIERS or PERCENT_TIERS or RANK_TIERS
 
     @Column(name = "tier_min", nullable = false)
     private Double tierMin;   // Base threshold per unit (e.g. per-commercial or per-PV)
@@ -38,5 +38,8 @@ public class ChallengeRewardRule {
 
     @Column(name = "base_amount", nullable = false)
     private Double baseAmount;   // Fixed gift or percent value
+
+    @Column(name = "gift", nullable = true)
+    private String gift;
 }
 

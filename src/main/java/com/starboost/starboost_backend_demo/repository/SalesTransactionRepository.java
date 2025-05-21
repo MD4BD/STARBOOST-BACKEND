@@ -10,24 +10,24 @@ import java.util.List;
 
 /**
  * Repository for SalesTransaction entities.
- * Contains only challenge-scoped lookup methods for our Performance and Scoring pipelines.
+ * Contains challenge-scoped lookup methods for Performance and Scoring pipelines.
  */
 @Repository
 public interface SalesTransactionRepository extends JpaRepository<SalesTransaction, Long> {
 
     /**
-     * Fetch all sales transactions belonging to a specific challenge.
+     * Fetch all transactions for a given challenge (by challenge.id).
      */
-    List<SalesTransaction> findAllByChallengeId(Long challengeId);
+    List<SalesTransaction> findAllByChallenge_Id(Long challengeId);
 
     /**
      * Count how many transactions a given seller made in a specific challenge.
      */
-    long countByChallengeIdAndSellerId(Long challengeId, Long sellerId);
+    long countByChallenge_IdAndSellerId(Long challengeId, Long sellerId);
 
     /**
-     * Sum the premiums of all transactions made by a given seller in a specific challenge.
-     * Returns 0.0 if none exist.
+     * Sum the premiums of all transactions by a given seller in a specific challenge.
+     * Uses JPQL with COALESCE to return 0.0 if no rows found.
      */
     @Query("""
         SELECT COALESCE(SUM(t.premium), 0)

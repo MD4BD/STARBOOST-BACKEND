@@ -19,4 +19,5 @@ public class RewardRuleDto {
     private Double tierMin;
     private Double tierMax;
     private Double baseAmount;
+    private String    gift;
 }

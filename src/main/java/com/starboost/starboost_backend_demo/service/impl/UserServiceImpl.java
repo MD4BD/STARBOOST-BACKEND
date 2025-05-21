@@ -1,6 +1,8 @@
+// src/main/java/com/starboost/starboost_backend_demo/service/impl/UserServiceImpl.java
 package com.starboost.starboost_backend_demo.service.impl;
 
 import com.starboost.starboost_backend_demo.dto.UserDto;
+import com.starboost.starboost_backend_demo.dto.user.ProfileUpdateDto;
 import com.starboost.starboost_backend_demo.entity.Gender;
 import com.starboost.starboost_backend_demo.entity.Role;
 import com.starboost.starboost_backend_demo.entity.User;
@@ -9,8 +11,12 @@ import com.starboost.starboost_backend_demo.repository.RegionRepository;
 import com.starboost.starboost_backend_demo.repository.UserRepository;
 import com.starboost.starboost_backend_demo.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -22,6 +28,8 @@ public class UserServiceImpl implements UserService {
     private final AgencyRepository agencyRepository;
     private final RegionRepository regionRepository;
     private final PasswordEncoder passwordEncoder;
+    private final UserRepository userRepo;
+    private final PasswordEncoder encoder;
 
     @Override
     public List<UserDto> findAll() {
@@ -69,6 +77,7 @@ public class UserServiceImpl implements UserService {
         existing.setDateOfBirth(dto.getDateOfBirth());
         existing.setRole(Role.valueOf(dto.getRole()));
         existing.setRegistrationNumber(dto.getRegistrationNumber());
+        existing.setActive(dto.getActive() != null && dto.getActive()); // persist active/inactive
 
         if (dto.getAgencyId() != null) {
             existing.setAgency(
@@ -95,6 +104,48 @@ public class UserServiceImpl implements UserService {
     @Override
     public void delete(Long id) {
         userRepository.deleteById(id);
+            try {
+                userRepository.deleteById(id);
+               } catch (DataIntegrityViolationException ex) {
+                 throw new ResponseStatusException(
+                         HttpStatus.CONFLICT,
+                         "Cannot delete user with existing references."
+                         );
+                }
+    }
+
+    @Override
+    public UserDto findByEmail(String email) {
+        return userRepo.findByEmail(email)
+                .map(this::toDto)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+    }
+
+    @Override
+    public UserDto updateProfile(Long userId, ProfileUpdateDto dto) {
+        User u = userRepo.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+
+        // 1) Copy new first name / last name
+        u.setFirstName(dto.getFirstName());
+        u.setLastName(dto.getLastName());
+
+        u.setPhoneNumber(dto.getPhoneNumber());
+        u.setDateOfBirth(dto.getDateOfBirth());
+
+        // 3) Handle optional password change
+        if (dto.getPassword() != null && !dto.getPassword().isBlank()) {
+            if (!dto.getPassword().equals(dto.getConfirmPassword())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Passwords must match");
+            }
+            u.setPassword(encoder.encode(dto.getPassword()));
+        }
+
+        // 4) Persist changes
+        userRepo.save(u);
+
+        // 5) Return updated UserDto
+        return toDto(u);
     }
 
     // ——————————————————————————————————————————————————————————————————
@@ -112,6 +163,9 @@ public class UserServiceImpl implements UserService {
                 .registrationNumber(user.getRegistrationNumber())
                 .agencyId(user.getAgency() != null ? user.getAgency().getId() : null)
                 .regionId(user.getRegion() != null ? user.getRegion().getId() : null)
+                .agencyName(user.getAgency() != null ? user.getAgency().getName() : null)
+                .regionName(user.getRegion() != null ? user.getRegion().getName() : null)
+                .active(user.isActive())      // ← include active flag
                 .build();
     }
 

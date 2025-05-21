@@ -1,3 +1,4 @@
+// src/main/java/com/starboost/starboost_backend_demo/service/impl/ChallengeServiceImpl.java
 package com.starboost.starboost_backend_demo.service.impl;
 
 import com.starboost.starboost_backend_demo.dto.*;
@@ -5,9 +6,11 @@ import com.starboost.starboost_backend_demo.entity.*;
 import com.starboost.starboost_backend_demo.repository.ChallengeRepository;
 import com.starboost.starboost_backend_demo.service.ChallengeParticipantService;
 import com.starboost.starboost_backend_demo.service.ChallengeService;
+import jakarta.transaction.Transactional;  // ← added for transaction management
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -16,6 +19,7 @@ import java.util.stream.Collectors;
  * Challenge definitions, including their score, winning, and reward rules.
  */
 @Service
+@Transactional  // ← ensure all methods run inside a transaction
 @RequiredArgsConstructor
 public class ChallengeServiceImpl implements ChallengeService {
     private final ChallengeRepository repo;
@@ -64,12 +68,10 @@ public class ChallengeServiceImpl implements ChallengeService {
         existing.setEndDate(dto.getEndDate());
         existing.setTargetRoles(dto.getTargetRoles());
         existing.setTargetProducts(dto.getTargetProducts());
-        existing.setStarBoostType(dto.getStarBoostType());
-        existing.setStarBoostValue(dto.getStarBoostValue());
         existing.setStatus(dto.getStatus());
         existing.setDeleted(dto.isDeleted());
 
-        // --- score rules (back-pointer still present) ---
+        // --- score rules (filters) ---
         existing.getRules().clear();
         if (dto.getRules() != null) {
             List<Rule> rules = dto.getRules().stream()
@@ -83,12 +85,13 @@ public class ChallengeServiceImpl implements ChallengeService {
             existing.getRules().addAll(rules);
         }
 
+
         // --- winning rules (now bidirectional & only min threshold) ---
         existing.getWinningRules().clear();
         if (dto.getWinningRules() != null) {
             List<ChallengeWinningRule> wr = dto.getWinningRules().stream()
                     .map(wd -> ChallengeWinningRule.builder()
-                            .challenge(existing)              // back-pointer so FK is set
+                            .challenge(existing)              // back‐pointer so FK is set
                             .roleCategory(wd.getRoleCategory())
                             .conditionType(wd.getConditionType())
                             .thresholdMin(wd.getThresholdMin())
@@ -102,12 +105,13 @@ public class ChallengeServiceImpl implements ChallengeService {
         if (dto.getRewardRules() != null) {
             List<ChallengeRewardRule> rr = dto.getRewardRules().stream()
                     .map(rd -> ChallengeRewardRule.builder()
-                            .challenge(existing)              // back-pointer
+                            .challenge(existing)              // back‐pointer
                             .roleCategory(rd.getRoleCategory())
                             .payoutType(rd.getPayoutType())
                             .tierMin(rd.getTierMin())
                             .tierMax(rd.getTierMax())
                             .baseAmount(rd.getBaseAmount())
+                            .gift(rd.getGift())
                             .build())
                     .collect(Collectors.toList());
             existing.getRewardRules().addAll(rr);
@@ -116,7 +120,7 @@ public class ChallengeServiceImpl implements ChallengeService {
         // 5) persist changes
         Challenge saved = repo.save(existing);
 
-        // 6) re-enroll if roles changed
+        // 6) re‐enroll if roles changed
         participantService.enrollParticipants(
                 id,
                 dto.getTargetRoles().stream().map(Enum::name).collect(Collectors.toSet())
@@ -142,6 +146,19 @@ public class ChallengeServiceImpl implements ChallengeService {
                         .build())
                 .collect(Collectors.toList());
 
+        // ─── NEW: score rule DTOs
+        var scoreDtos = c.getScoreRules().stream()
+                .map(sr -> ScoreRuleDto.builder()
+                        .id(sr.getId())
+                        .scoreType(sr.getScoreType())
+                        .contractType(sr.getContractType())
+                        .packType(sr.getPackType())
+                        .points(sr.getPoints())
+                        .revenueUnit(sr.getRevenueUnit())
+                        .challengeId(c.getId())
+                        .build())
+                .collect(Collectors.toList());
+
         // only thresholdMin is exposed now
         var winDtos = c.getWinningRules().stream()
                 .map(w -> WinningRuleDto.builder()
@@ -160,6 +177,7 @@ public class ChallengeServiceImpl implements ChallengeService {
                         .tierMin(r.getTierMin())
                         .tierMax(r.getTierMax())
                         .baseAmount(r.getBaseAmount())
+                        .gift(r.getGift())
                         .build())
                 .collect(Collectors.toList());
 
@@ -173,9 +191,10 @@ public class ChallengeServiceImpl implements ChallengeService {
                 .rules(ruleDtos)
                 .winningRules(winDtos)
                 .rewardRules(rewardDtos)
-                .starBoostType(c.getStarBoostType())
-                .starBoostValue(c.getStarBoostValue())
-                .status(c.getStatus())
+                // dynamic status based on end‐date
+                .status(c.getEndDate().isBefore(LocalDate.now())
+                        ? ChallengeStatus.ENDED
+                        : ChallengeStatus.ONGOING)
                 .deleted(c.isDeleted())
                 .build();
     }
@@ -187,8 +206,6 @@ public class ChallengeServiceImpl implements ChallengeService {
                 .endDate(d.getEndDate())
                 .targetRoles(d.getTargetRoles())
                 .targetProducts(d.getTargetProducts())
-                .starBoostType(d.getStarBoostType())
-                .starBoostValue(d.getStarBoostValue())
                 .status(d.getStatus())
                 .deleted(d.isDeleted())
                 .build();
@@ -204,6 +221,8 @@ public class ChallengeServiceImpl implements ChallengeService {
                     .collect(Collectors.toList());
             chall.setRules(rules);
         }
+
+
 
         if (d.getWinningRules() != null) {
             var wr = d.getWinningRules().stream()
@@ -226,6 +245,7 @@ public class ChallengeServiceImpl implements ChallengeService {
                             .tierMin(rd.getTierMin())
                             .tierMax(rd.getTierMax())
                             .baseAmount(rd.getBaseAmount())
+                            .gift(rd.getGift())
                             .build())
                     .collect(Collectors.toList());
             chall.setRewardRules(rr);

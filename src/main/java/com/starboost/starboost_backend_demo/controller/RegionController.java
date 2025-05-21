@@ -1,7 +1,9 @@
+// src/main/java/com/starboost/starboost_backend_demo/controller/RegionController.java
 package com.starboost.starboost_backend_demo.controller;
 
 import com.starboost.starboost_backend_demo.dto.RegionDto;
 import com.starboost.starboost_backend_demo.service.RegionService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,12 +26,13 @@ public class RegionController {
     }
 
     @PostMapping
-    public RegionDto create(@RequestBody RegionDto dto) {
+    public RegionDto create(@Valid @RequestBody RegionDto dto) {
         return regionService.create(dto);
     }
 
     @PutMapping("/{id}")
-    public RegionDto update(@PathVariable Long id, @RequestBody RegionDto dto) {
+    public RegionDto update(@PathVariable Long id,
+                            @Valid @RequestBody RegionDto dto) {
         return regionService.update(id, dto);
     }
 

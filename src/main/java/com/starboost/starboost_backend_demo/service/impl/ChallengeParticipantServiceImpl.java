@@ -1,16 +1,16 @@
 package com.starboost.starboost_backend_demo.service.impl;
 
 import com.starboost.starboost_backend_demo.dto.ChallengeParticipantDto;
-import com.starboost.starboost_backend_demo.entity.Challenge;
-import com.starboost.starboost_backend_demo.entity.ChallengeParticipant;
-import com.starboost.starboost_backend_demo.entity.ParticipantStatus;
-import com.starboost.starboost_backend_demo.entity.Role;
+import com.starboost.starboost_backend_demo.entity.*;
 import com.starboost.starboost_backend_demo.repository.ChallengeParticipantRepository;
 import com.starboost.starboost_backend_demo.repository.ChallengeRepository;
 import com.starboost.starboost_backend_demo.repository.UserRepository;
+import com.starboost.starboost_backend_demo.repository.AgencyRepository;
 import com.starboost.starboost_backend_demo.service.ChallengeParticipantService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Set;
@@ -26,15 +26,23 @@ public class ChallengeParticipantServiceImpl implements ChallengeParticipantServ
     private final ChallengeParticipantRepository participantRepo;
     private final ChallengeRepository           challengeRepo;
     private final UserRepository                userRepo;
+    private final AgencyRepository           agencyRepo;
+    private final ChallengeParticipantRepository repo;
 
+    /**
+     * (Re)enroll all users whose global role is in targetRoles.
+     * Deletes old enrollments via deleteAllByChallenge_Id(...).
+     */
     @Override
     public List<ChallengeParticipantDto> enrollParticipants(Long challengeId, Set<String> targetRoles) {
-        // remove old enrollments
-        participantRepo.deleteAllByChallengeId(challengeId);
+        // 1) remove old enrollments
+        participantRepo.deleteAllByChallenge_Id(challengeId);
+
+        // 2) fetch the challenge
         Challenge challenge = challengeRepo.findById(challengeId)
                 .orElseThrow(() -> new RuntimeException("Challenge not found: " + challengeId));
 
-        // enroll all users whose global role is in targetRoles
+        // 3) build new ChallengeParticipant entities
         List<ChallengeParticipant> participants = userRepo.findAll().stream()
                 .filter(u -> targetRoles.contains(u.getRole().name()))
                 .map(u -> ChallengeParticipant.builder()
@@ -47,34 +55,46 @@ public class ChallengeParticipantServiceImpl implements ChallengeParticipantServ
                         .build())
                 .collect(Collectors.toList());
 
+        // 4) save and return DTOs
         participantRepo.saveAll(participants);
         return participants.stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
 
+    /** List all participant DTOs for a challenge. */
     @Override
     public List<ChallengeParticipantDto> findByChallengeId(Long challengeId) {
-        return participantRepo.findAllByChallengeId(challengeId).stream()
+        return participantRepo.findAllByChallenge_Id(challengeId).stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Find one participant by challenge + user.
+     * Uses the new repository method findByChallenge_IdAndUserId(...).
+     */
     @Override
     public ChallengeParticipantDto findByChallengeAndUser(Long challengeId, Long userId) {
         ChallengeParticipant p = participantRepo
-                .findByChallengeIdAndUserId(challengeId, userId)
-                .orElseThrow(() -> new RuntimeException("Participant not found"));
+                .findByChallenge_IdAndUserId(challengeId, userId)
+                .orElseThrow(() -> new RuntimeException(
+                        "Participant not found for challenge=" + challengeId + " user=" + userId));
         return toDto(p);
     }
 
+    /** Lookup by the participant’s own ID. */
     @Override
     public ChallengeParticipantDto findByParticipantId(Long participantId) {
         ChallengeParticipant p = participantRepo.findById(participantId)
-                .orElseThrow(() -> new RuntimeException("Participant not found"));
+                .orElseThrow(() -> new RuntimeException("Participant not found: " + participantId));
         return toDto(p);
     }
 
+    /**
+     * Filtered lookup by role, id or name.
+     * Reuses findByChallengeId(...) internally.
+     */
     @Override
     public List<ChallengeParticipantDto> findByChallengeAndRole(
             Long challengeId,
@@ -83,59 +103,91 @@ public class ChallengeParticipantServiceImpl implements ChallengeParticipantServ
             String filterName
     ) {
         return findByChallengeId(challengeId).stream()
-                .filter(p -> p.getRole() == role)
-                .filter(p -> filterId == null
-                        || p.getParticipantId().equals(filterId)
-                        || p.getUserId().equals(filterId))
-                .filter(p -> filterName == null
-                        || (p.getFirstName() + " " + p.getLastName())
+                .filter(dto -> dto.getRole() == role)
+                .filter(dto -> filterId == null
+                        || dto.getParticipantId().equals(filterId)
+                        || dto.getUserId().equals(filterId))
+                .filter(dto -> filterName == null
+                        || (dto.getFirstName() + " " + dto.getLastName())
                         .toLowerCase().contains(filterName.toLowerCase()))
                 .collect(Collectors.toList());
     }
 
-    // ─── New helper methods for ChallengeEvaluationServiceImpl ─────────────────
-
+    /** Pluck userIds from the role‐filtered participants. */
     @Override
     public List<Long> listParticipantIds(Long challengeId, Role roleCategory) {
-        // pluck userIds from participants of that role
         return findByChallengeAndRole(challengeId, roleCategory, null, null).stream()
                 .map(ChallengeParticipantDto::getUserId)
                 .collect(Collectors.toList());
     }
 
+    /** Look up a user’s agency from the User table. */
     @Override
     public Long getAgencyIdForUser(Long userId) {
-        // look up the User’s agency on the User record
         return userRepo.findById(userId)
                 .map(u -> u.getAgency() != null ? u.getAgency().getId() : null)
                 .orElse(null);
     }
 
+    /** Look up a user’s region from the User table. */
     @Override
     public Long getRegionIdForUser(Long userId) {
-        // look up the User’s region on the User record
         return userRepo.findById(userId)
                 .map(u -> u.getRegion() != null ? u.getRegion().getId() : null)
                 .orElse(null);
     }
 
+    /**
+     * Count how many commercials in a specific agency in the given challenge.
+     * Now uses repository countByChallenge_IdAndAgencyId(...)
+     */
     @Override
-    public long countByAgency(Long challengeId, Long agencyId) {
-        // how many participants share that agency?
-        return participantRepo.findAllByChallengeId(challengeId).stream()
-                .filter(p -> agencyId != null && agencyId.equals(p.getAgencyId()))
-                .count();
+    public long countCommercialsInAgency(Long challengeId, Long agencyId) {
+        // this uses exactly the repo method you already have
+        return participantRepo.countByChallenge_IdAndAgencyIdAndRole(
+                challengeId, agencyId, Role.COMMERCIAL
+        );
+    }
+
+
+
+     // Count how many sales points in a region in the given challenge.
+     @Override
+     public long countSalesPointsInRegion(Long challengeId, Long regionId) {
+         // 1) how many AGENTs participated in this challenge in that region?
+         long agents = participantRepo
+                 .countByChallenge_IdAndRegionIdAndRole(
+                         challengeId,
+                         regionId,
+                         Role.AGENT
+                 );
+
+         // 2) how many agencies exist in that region?
+         long agencies = agencyRepo.countByRegionId(regionId);
+
+         return agents + agencies;
+     }
+
+
+    @Override
+    public List<Long> listChallengeIdsForUser(Long userId) {
+        return repo.findAllByUser_Id(userId)
+                .stream()
+                .map(cp -> cp.getChallenge().getId())
+                .toList();
     }
 
     @Override
-    public long countByRegion(Long challengeId, Long regionId) {
-        // how many participants share that region?
-        return participantRepo.findAllByChallengeId(challengeId).stream()
-                .filter(p -> regionId != null && regionId.equals(p.getRegionId()))
-                .count();
+    public Long getUserIdByEmail(String email) {
+        return userRepo
+                .findByEmail(email)
+                .map(User::getId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
     }
 
-    // ─── Utility: map entity → DTO ────────────────────────────────────
+
+
+    /** Helper to map entity → DTO. */
     private ChallengeParticipantDto toDto(ChallengeParticipant p) {
         return ChallengeParticipantDto.builder()
                 .participantId(p.getId())

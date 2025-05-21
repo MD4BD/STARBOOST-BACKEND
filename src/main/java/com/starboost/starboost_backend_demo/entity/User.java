@@ -4,6 +4,8 @@ package com.starboost.starboost_backend_demo.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDate;
+import java.util.Set;
+import java.util.HashSet;
 
 @Entity
 @Table(name = "users")
@@ -63,4 +65,7 @@ public class User {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "region_id")
     private Region region;
+
+    @Column(nullable = false)
+    private boolean active = true;    // new field defaulting to true
 }

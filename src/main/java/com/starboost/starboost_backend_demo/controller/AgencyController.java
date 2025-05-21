@@ -1,7 +1,9 @@
+// src/main/java/com/starboost/starboost_backend_demo/controller/AgencyController.java
 package com.starboost.starboost_backend_demo.controller;
 
 import com.starboost.starboost_backend_demo.dto.AgencyDto;
 import com.starboost.starboost_backend_demo.service.AgencyService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,12 +26,13 @@ public class AgencyController {
     }
 
     @PostMapping
-    public AgencyDto create(@RequestBody AgencyDto dto) {
+    public AgencyDto create(@Valid @RequestBody AgencyDto dto) {
         return agencyService.create(dto);
     }
 
     @PutMapping("/{id}")
-    public AgencyDto update(@PathVariable Long id, @RequestBody AgencyDto dto) {
+    public AgencyDto update(@PathVariable Long id,
+                            @Valid @RequestBody AgencyDto dto) {
         return agencyService.update(id, dto);
     }
 

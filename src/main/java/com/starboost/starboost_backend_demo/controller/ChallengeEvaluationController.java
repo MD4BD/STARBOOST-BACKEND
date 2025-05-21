@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Exposes the final “winners” list for a challenge:
@@ -32,13 +33,21 @@ public class ChallengeEvaluationController {
 
     /**
      * GET  /api/challenges/{challengeId}/winners/{role}
-     * Returns winners only for the given role (AGENT, COMMERCIAL, etc.).
+     * Returns winners only for the given role (AGENT, COMMERCIAL, etc.),
+     * but filters out any participants with no reward (rewardAmount <= 0).
      */
     @GetMapping("/winners/{role}")
     public List<WinnerDto> listWinnersByRole(
             @PathVariable Long challengeId,
             @PathVariable Role role
     ) {
-        return evaluationService.listWinnersByRole(challengeId, role);
+        // 1) fetch all winners for the role (including zero-reward)
+        List<WinnerDto> initialList = evaluationService.listWinnersByRole(challengeId, role);
+
+        // 2) filter out participants who did not earn any reward
+        // Since rewardAmount is primitive double, just check > 0
+        return initialList.stream()
+                .filter(w -> w.getRewardAmount() > 0)
+                .collect(Collectors.toList());
     }
 }

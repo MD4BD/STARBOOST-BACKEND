@@ -1,83 +1,87 @@
+// src/main/java/com/starboost/starboost_backend_demo/config/SecurityConfig.java
 package com.starboost.starboost_backend_demo.config;
 
-import com.starboost.starboost_backend_demo.service.impl.CustomUserDetailsService;
 import com.starboost.starboost_backend_demo.util.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+/**
+ * Main security configuration for JWT-based auth, role-based URL protection,
+ * and stateless session management.
+ */
 @Configuration
-@EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
-    private final CustomUserDetailsService userDetailsService;
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    private final JwtAuthenticationFilter jwtAuthFilter;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // 1) disable csrf, form login, and http basic
+                // disable sessions, CSRF, form login, basic auth
                 .csrf(csrf -> csrf.disable())
-                .formLogin(form -> form.disable())
-                .httpBasic(basic -> basic.disable())
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .httpBasic(Customizer.withDefaults())
+                .formLogin(Customizer.withDefaults())
 
-                // 2) make these endpoints publicly accessible, everything else authenticated
+                // 2) Authorization rules
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
-                                "/api/auth/**",
-                                "/api/users/**",
-                                "/api/agencies/**",
-                                "/api/regions/**",
-                                "/api/challenges/**",
-                                "/api/sales/**",
-                                "/api/leaderboard/**"
-                        ).permitAll()
-                        .anyRequest().authenticated()
+                        // 1) Allow anonymous access to auth endpoints
+                        .requestMatchers("/api/auth/**").permitAll()
+
+                        // 2) Admin APIs (only ROLE_ADMIN can access)
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
+                        // 3) User-facing “/me” endpoints (any authenticated user)
+                        .requestMatchers("/api/me/**").authenticated()
+
+                        // 4) (Optional) URL-level role rules—if you still want them here
+                        // .requestMatchers("/api/commercial/**").hasRole("COMMERCIAL")
+                        // .requestMatchers("/api/agency-manager/**").hasRole("AGENCY_MANAGER")
+                        // .requestMatchers("/api/regional-manager/**").hasRole("REGIONAL_MANAGER")
+                        // .requestMatchers("/api/agent/**").hasRole("AGENT")
+                        // .requestMatchers("/api/animator/**").hasRole("ANIMATOR")
+
+                        // 5) All other /api/** endpoints require authentication
+                        .requestMatchers("/api/**").authenticated()
+
+                        // 6) Everything else (static, actuator, health checks, etc.) can be open
+                        .anyRequest().permitAll()
                 )
 
-                // 3) stateless session (no cookies)
-                .sessionManagement(sm -> sm
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
-
-                // 4) our DAO provider (wires your UserDetailsService + BCrypt)
-                .authenticationProvider(daoAuthenticationProvider())
-
-                // 5) JWT filter before Spring’s own UsernamePasswordAuthenticationFilter
-                .addFilterBefore(jwtAuthenticationFilter,
-                        UsernamePasswordAuthenticationFilter.class);
+                // 3) JWT filter before the UsernamePasswordAuthenticationFilter
+                .addFilterBefore(jwtAuthFilter,
+                        org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    /** DAO provider so Spring uses your CustomUserDetailsService + BCrypt */
+    /**
+     * Expose the AuthenticationManager built by Spring so it can be injected
+     * into AuthController for performing login authentication.
+     */
     @Bean
-    public DaoAuthenticationProvider daoAuthenticationProvider() {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-        provider.setUserDetailsService(userDetailsService);
-        provider.setPasswordEncoder(passwordEncoder());
-        return provider;
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration authenticationConfiguration
+    ) throws Exception {
+        return authenticationConfiguration.getAuthenticationManager();
     }
 
-    /** BCryptPasswordEncoder bean */
+    /**
+     * Expose a BCryptPasswordEncoder so Spring can auto-wire PasswordEncoder
+     * into services and the authentication provider.
+     */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
-    }
-
-    /** Expose the AuthenticationManager built by Spring for injection into AuthController */
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
     }
 }

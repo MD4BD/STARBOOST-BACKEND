@@ -1,3 +1,4 @@
+// src/main/java/com/starboost/starboost_backend_demo/controller/UserController.java
 package com.starboost.starboost_backend_demo.controller;
 
 import com.starboost.starboost_backend_demo.dto.UserDto;
@@ -27,14 +28,14 @@ public class UserController {
     }
 
     @PostMapping
-    public ResponseEntity<UserDto> create(@RequestBody @Valid UserDto dto) {
+    public ResponseEntity<UserDto> create(@Valid @RequestBody UserDto dto) {
         UserDto created = userService.create(dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<UserDto> update(@PathVariable Long id,
-                                          @RequestBody @Valid UserDto dto) {
+                                          @Valid @RequestBody UserDto dto) {
         return ResponseEntity.ok(userService.update(id, dto));
     }
 

@@ -1,16 +1,16 @@
 package com.starboost.starboost_backend_demo;
 
-import com.starboost.starboost_backend_demo.entity.*;
-import com.starboost.starboost_backend_demo.repository.*;
+import com.starboost.starboost_backend_demo.entity.Gender;
+import com.starboost.starboost_backend_demo.entity.Role;
+import com.starboost.starboost_backend_demo.entity.User;
+import com.starboost.starboost_backend_demo.repository.UserRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDate;
-import java.util.List;
 
 @SpringBootApplication
 public class StarboostBackendDemoApplication {
@@ -19,60 +19,39 @@ public class StarboostBackendDemoApplication {
 		SpringApplication.run(StarboostBackendDemoApplication.class, args);
 	}
 
+	/**
+	 * On startup, seed *only* the ADMIN user if none exists.
+	 * We no longer auto-create Regions or Agencies here,
+	 * because you have your real data in the database already.
+	 */
 	@Bean
-	CommandLineRunner seedData(
-			RegionRepository regionRepo,
-			AgencyRepository agencyRepo,
-			UserRepository userRepo,
-			PasswordEncoder encoder
-	) {
+	CommandLineRunner seedAdmin(UserRepository userRepo,
+								PasswordEncoder encoder) {
 		return args -> {
-			// 1) Seed Regions
-			if (regionRepo.count() == 0) {
-				List<Region> regions = List.of(
-						new Region(null, "R1", "North", List.of()),
-						new Region(null, "R2", "South", List.of()),
-						new Region(null, "R3", "East",  List.of()),
-						new Region(null, "R4", "West", List.of()),
-						new Region(null, "R5", "Central", List.of()),
-						new Region(null, "R6", "Islands", List.of())
-				);
-				regionRepo.saveAll(regions);
-			}
-
-			// 2) Seed Agencies (one per region for demo)
-			if (agencyRepo.count() == 0) {
-				regionRepo.findAll().forEach(r -> {
-					agencyRepo.save(new Agency(
-							null,
-							r.getCode() + "-A1",
-							r.getName() + " HQ Branch",
-							r
-					));
-				});
-			}
-
-			// 3) Seed an ADMIN user
+			// Only seed if the users table is completely empty:
 			if (userRepo.count() == 0) {
-				Region anyRegion = regionRepo.findAll().get(0);
-				Agency anyAgency = agencyRepo.findAll().get(0);
 				User admin = User.builder()
 						.firstName("Super")
 						.lastName("Admin")
 						.email("admin@starboost.com")
 						.phoneNumber("0000000000")
 						.gender(Gender.M)
-						.dateOfBirth(LocalDate.of(1990,1,1))
-						.role(Role.AGENCY_MANAGER)
+						.dateOfBirth(LocalDate.of(1990, 1, 1))
+
+						// ← GIVE THEM TRUE ADMIN RIGHTS
+						.role(Role.ADMIN)
+
+						// ← NO AGENCY or REGION for a global ADMIN
+						.agency(null)
+						.region(null)
+
 						.registrationNumber("REG-ADMIN-001")
-						.region(anyRegion)
-						.agency(anyAgency)
 						.password(encoder.encode("adminpass"))
 						.build();
+
 				userRepo.save(admin);
+				System.out.println("✅ Seeded ADMIN user: " + admin.getEmail());
 			}
 		};
 	}
-
-
 }

@@ -16,17 +16,15 @@ public interface ChallengeRewardRuleRepository
 
     /**
      * Fetch all reward rules for a given challenge and role category.
-     *
-     * @param challengeId  the ID of the challenge
-     * @param roleCategory the role (e.g. AGENT, COMMERCIAL, AGENCY_MANAGER…)
-     * @return a list of matching ChallengeRewardRule entities
+     * Matches the entity’s challenge.id via underscore syntax.
      */
-    List<ChallengeRewardRule> findAllByChallengeIdAndRoleCategory(
+    List<ChallengeRewardRule> findAllByChallenge_IdAndRoleCategory(
             Long challengeId,
             Role roleCategory
     );
 
-    List<ChallengeRewardRule> findAllByChallengeId(Long challengeId);
-
-
+    /**
+     * Fetch all reward rules for a given challenge.
+     */
+    List<ChallengeRewardRule> findAllByChallenge_Id(Long challengeId);
 }
